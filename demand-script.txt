@@ -1,0 +1,20 @@
+import pandas as pd
+import numpy as np
+
+data = pd.read_csv("submission_pikapika.csv")
+
+new_data = []
+for i in range(len(data)):
+    new_data.append([data.stream1[i], data.stream2[i], data.stream3[i], data.stream4[i], data.stream5[i]])
+
+bandwidth = []
+for i in range(len(data)):
+    bandwidth.append(data.bandwidth_available_OTT[i])
+    
+result = []
+for i in range(2256):
+    total = sum(new_data[i])
+    result.append([(bandwidth[i]) - (total-new_data[i][0]), 1, (bandwidth[i]) - (total-new_data[i][1]), 2, (bandwidth[i]) - (total-new_data[i][2]), 3, (bandwidth[i]) - (total-new_data[i][3]), 4, (bandwidth[i]) - (total-new_data[i][4]), 5])
+    
+for i in range(len(result)):
+    print(result[i])
