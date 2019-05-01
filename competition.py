@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-print("hello")
+print("hello world")
 
 list_of_train = ['number_of_slot','number_of_day','number_of_weekday','number_of_hour']
 list_of_target = ['stream1','stream2','stream3','stream4','bandwidth_available_OTT']
