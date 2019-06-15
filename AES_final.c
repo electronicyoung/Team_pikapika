@@ -56,10 +56,10 @@ uint8_t Rconstant[] = {0x01, 0x00, 0x00, 0x00};
 int main()
 {
 
-    uint8_t message[] ={0x00,0x11,0x22,0x33,
-                        0x44,0x55,0x66,0x77,
-                        0x88,0x99,0xaa,0xbb,
-                        0xcc,0xdd,0xee,0xff
+    uint8_t message[] ={0x48,0x49,0x00,0x00,
+                        0x00,0x00,0x00,0x00,
+                        0x00,0x00,0x00,0x00,
+                        0x00,0x00,0x00,0x00
                         };
 
     printf("Plain text : ");
@@ -67,17 +67,17 @@ int main()
         printf("%x",message[i]);
     }
     printf("\n");
-    //uint8_t key[]= {0x21,0xab,0x71,0x03,
-      //              0xd6,0x82,0x79,0xad,
-        //            0xe0,0x45,0x2d,0x11,
-          //          0x25,0x2d,0x11,0x28
-            //        };
+    uint8_t key[]= {0x21,0xab,0x71,0x03,
+                    0xd6,0x82,0x79,0xad,
+                    0xe0,0x45,0x2d,0x11,
+                    0x25,0x2d,0x11,0x28
+                    };
 
-    uint8_t key[]= {0x00,0x01,0x02,0x03,
-                    0x04,0x05,0x06,0x07,
-                    0x08,0x09,0x0a,0x0b,
-                    0x0c,0x0d,0x0e,0x0f
-                                       };
+    //uint8_t key[]= {0x00,0x01,0x02,0x03,
+      //              0x04,0x05,0x06,0x07,
+        //            0x08,0x09,0x0a,0x0b,
+          //          0x0c,0x0d,0x0e,0x0f
+            //                           };
 
     printf("Key : ");
     for(int i=0; i<16; i++){
@@ -127,7 +127,7 @@ int main()
             RoundKeys(shift_text, No_of_Expanded_keys[k].keys, encrypt_msg);
             printf("last round enc_msg : ");
             for(int i=0; i<16; i++){
-                printf("%x",encrypt_msg[i]);
+                printf("%02x",encrypt_msg[i]);
             }
             printf("\n");
         }
@@ -284,12 +284,13 @@ void shiftrow(uint8_t *transfered_text, uint8_t *shifted_text)
 uint8_t multiply(uint8_t value)
 {
   uint8_t temp = value;
-  temp = temp << 1;
-
+  
   if(temp < 0x80){
+    temp = temp << 1;
     return temp;
   }
   else{
+    temp = temp << 1;
     temp = temp ^ 0x1b;
     return temp;
   }
