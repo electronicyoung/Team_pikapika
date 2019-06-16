@@ -69,10 +69,10 @@ int main()
         printf("%x",message[i]);
     }
     printf("\n");
-    uint8_t key[]= {0x13,0x11,0x1d,0x7f,
-                    0xe3,0x94,0x4a,0x17,
-                    0xf3,0x07,0xa7,0x8b,
-                    0x4d,0x2b,0x30,0xc5
+    uint8_t key[]= {0x00,0x01,0x02,0x03,
+                    0x04,0x05,0x06,0x07,
+                    0x08,0x09,0x0a,0x0b,
+                    0x0c,0x0d,0x0e,0x0f
                     };
 
     //uint8_t key[]= {0x00,0x01,0x02,0x03,
@@ -100,7 +100,7 @@ int main()
       }
     }
     */
-    RoundKeys(message, key, encrypt_msg);
+    RoundKeys(message, No_of_Expanded_keys[10].keys, encrypt_msg);
 
 
     //debug
@@ -110,8 +110,8 @@ int main()
     }
     printf("\n");
 
-    for(int k=1;k<11;k++) {
-        if(k == 10) {
+    for(int k=9;k>=0;k--) {
+        if(k == 0) {
             inv_Subbyte(encrypt_msg, sub_text, 16);
             printf("round %d sub_byte : ",k);
             for(int i=0; i<16; i++){
