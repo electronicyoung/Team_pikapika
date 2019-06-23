@@ -1,11 +1,3 @@
-/******************************************************************************
-
-Welcome to GDB Online.
-GDB online is an online compiler and debugger tool for C, C++, Python, Java, PHP, Ruby, Perl,
-C#, VB, Swift, Pascal, Fortran, Haskell, Objective-C, Assembly, HTML, CSS, JS, SQLite, Prolog.
-Code, Compile, Run and Debug online from anywhere in world.
-
-*******************************************************************************/
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -19,7 +11,10 @@ void Rcon(uint8_t *Rcon);
 void RoundKeys(uint8_t plain_message[], uint8_t cipher_key[], uint8_t encrypted_message[]);
 void shiftrow(uint8_t *transfered_text, uint8_t *shifted_text);
 void mixcolumn(uint8_t *shifted_text, uint8_t *mixed_text);
+void AES_Encrypt(uint8_t msg[], uint8_t enc_msg[], uint8_t key[]);
 uint8_t multiply(uint8_t value);
+uint8_t lsb_finder(uint32_t input);
+void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]);
 
 static const uint8_t sbox[256] = {
                   //0     1    2      3     4    5     6     7      8    9     A      B    C     D     E     F
@@ -68,15 +63,14 @@ uint8_t Rconstant[] = {0x01, 0x00, 0x00, 0x00};
 int main()
 {
 
-    uint8_t message[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-    
+    uint8_t message[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
     uint8_t Hash[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-   
+
     uint8_t iv[] ={0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-    
     int msg_length = sizeof(message)/sizeof(uint8_t);
-    
+
     uint8_t key[]= {0x00,0x00,0x00,0x00,
                     0x00,0x00,0x00,0x00,
                     0x00,0x00,0x00,0x00,
@@ -85,85 +79,163 @@ int main()
 
     Rcon(Rconstant);
     keyExpansion(key);
-   
+
     int count = plaintext_block(message,msg_length,counting);
     initialization_counter(iv,count);
-   
-    RoundKeys(Hash, key, encrypt_msg);
-    
+
+    AES_Encrypt(Hash, Hash_text, key);
+
+   for(int j=0;j<count;j++){
+
+        int c = j + 1;
+        AES_Encrypt(counter[c], encrypt_msg, key);
+
+        for(int i=0;i<16;i++) {
+            encrypted_msg[j][i] = text[j][i] ^ encrypt_msg[i];
+        }
+    }
+
+    char i,k;
+
+    uint32_t *input_Z[4] = {0,0,0,0};
+
+    uint32_t *input_A[4];
+    uint32_t *input_B[4];
+
+    memcpy(&input_A[0], encrypted_msg[1], 4);
+    memcpy(&input_A[1], encrypted_msg[1]+4, 4);
+    memcpy(&input_A[2], encrypted_msg[1]+8, 4);
+    memcpy(&input_A[3], encrypted_msg[1]+12, 4);
+
+    memcpy(&input_B[0], Hash_text, 4);
+    memcpy(&input_B[1], Hash_text+4, 4);
+    memcpy(&input_B[2], Hash_text+8, 4);
+    memcpy(&input_B[3], Hash_text+12, 4);
+
+   //= 0x5E2EC746917062882C85B0685353DEB7
+    galois_multiply(input_A, input_B, input_Z);
+
+    printf("z[0] : %x\n", input_Z[0]);
+    printf("z[1] : %x\n", input_Z[1]);
+    printf("z[2] : %x\n", input_Z[2]);
+    printf("z[3] : %x\n", input_Z[3]);
+
+   return 0;
+
+}
+
+void AES_Encrypt(uint8_t msg[], uint8_t enc_msg[], uint8_t keys[]) {
+
+    RoundKeys(msg, keys, enc_msg);
+
     for(int k=1;k<11;k++) {
         if(k == 10) {
-            Subbyte(encrypt_msg, sub_text, 16);
+            Subbyte(enc_msg, sub_text, 16);
 
             shiftrow(sub_text, shift_text);
 
-            RoundKeys(shift_text, No_of_Expanded_keys[k].keys, encrypt_msg);
-        }
-          else {
-            Subbyte(encrypt_msg, sub_text, 16);
-
-            shiftrow(sub_text, shift_text);
-            
-            mixcolumn(shift_text, mix_text);
-            
-            RoundKeys(mix_text, No_of_Expanded_keys[k].keys, encrypt_msg);
- 
-        }
-    }
-    
-    for(int j=0;j<count;j++){
-   
-        int c = j + 1;
-        RoundKeys(counter[c], key, encrypt_msg);
-        printf("Plain text : ");
-          for(int i=0; i<16; i++){
-           printf("%x",counter[c][i]);
-        }
-        printf("\n");
-        printf("round0 enc_msg : ");
-        for(int i=0; i<16; i++){
-           printf("%02x",encrypt_msg[i]);
-        }
-        printf("\n");
-
-        for(int k=1;k<11;k++) {
-          if(k == 10) {
-            Subbyte(encrypt_msg, sub_text, 16);
-
-            shiftrow(sub_text, shift_text);
-
-            RoundKeys(shift_text, No_of_Expanded_keys[k].keys, encrypt_msg);
+            RoundKeys(shift_text, No_of_Expanded_keys[k].keys, enc_msg);
             printf("last round enc_msg : ");
             for(int i=0; i<16; i++){
-                printf("%02x",encrypt_msg[i]);
-            }
-            printf("\n");
-  
-          }
-          else {
-            Subbyte(encrypt_msg, sub_text, 16);
-
-            shiftrow(sub_text, shift_text);
-            
-            mixcolumn(shift_text, mix_text);
-            
-            RoundKeys(mix_text, No_of_Expanded_keys[k].keys, encrypt_msg);
-            printf("round %d enc_msg : ",k);
-            for(int i=0; i<16; i++){
-                printf("%x",encrypt_msg[i]);
+                printf("%02x", enc_msg[i]);
             }
             printf("\n");
         }
+          else {
+            Subbyte(enc_msg, sub_text, 16);
+
+            shiftrow(sub_text, shift_text);
+
+            mixcolumn(shift_text, mix_text);
+
+            RoundKeys(mix_text, No_of_Expanded_keys[k].keys, enc_msg);
+
+        }
     }
-    
-    for(int i=0;i<16;i++) {
-        encrypted_msg[j][i] = text[j][i] ^ encrypt_msg[i];
-        printf("%02x", encrypted_msg[j][i]);
-    }
-    printf("\n");
 }
-    
-    return 0;
+
+uint8_t lsb_finder(uint32_t input){
+  uint32_t bit_mask = 0x1;
+  uint32_t temp = input;
+
+  return (temp & bit_mask);
+}
+
+
+void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
+    uint32_t bit_shifter = 0x80;
+    unsigned char shift_cnt = 0;
+    unsigned char i =0;
+    unsigned char j =0;
+    unsigned char v_lsb_flag = 0;
+    uint32_t temp;
+    uint32_t temp2;
+
+    uint32_t v[4] = {0,0,0,0};
+
+    uint32_t r[4] = {0,0,0,0};
+
+    memcpy(&v[0], &x[0], 4);
+    memcpy(&v[1], &x[1]+4, 4);
+    memcpy(&v[2], &x[2]+8, 4);
+    memcpy(&v[3], &x[3]+12, 4);
+
+    r[0] = 0xe1000000;
+
+    for( i=0; i<4; i++){
+        temp = y[i];//copy y to temp
+        for( j=0; j<32; j++){
+            if( ( temp & bit_shifter) == bit_shifter){//bit masking one by one
+                z[0] = ( (uint32_t)z[0] ^ v[0] );
+                z[1] = ( (uint32_t)z[1] ^ v[1] );
+                z[2] = ( (uint32_t)z[2] ^ v[2] );
+                z[3] = ( (uint32_t)z[3] ^ v[3] );
+
+            }
+            if( v[0] & 0x1 == 1){//When LSB of Vi is 0
+            v_lsb_flag = 1;
+
+           }
+
+            v[0] = v[0] >> 1;
+
+            temp2 = v[1];
+            if(lsb_finder(temp2)){//if lsb of v[1] is '1'
+               v[0] = (uint32_t)v[0] | 0x80000000;//write MSB as 1
+            }
+            v[1] = v[1] >> 1;
+
+            temp2 = v[2];
+            if(lsb_finder(temp2)){
+               v[1] = (uint32_t)v[1] | 0x80000000;
+            }
+            v[2] = v[2] >> 1;
+
+            temp2 = v[3];
+            if(lsb_finder(temp2)){
+               v[2] = (uint32_t)v[2] | 0x80000000;
+            }
+            v[3] = v[3] >> 1;
+
+            if( v_lsb_flag == 1){
+                v[3] = (v[3] >> 1) ^ r[3];
+                v[2] = (v[2] >> 1) ^ r[2];
+                v[1] = (v[1] >> 1) ^ r[1];
+                v[0] = (v[0] >> 1) ^ r[0];
+                v_lsb_flag = 0;
+            }
+
+
+            bit_shifter = bit_shifter << 1;
+
+        }//end of 32bit loop
+        bit_shifter = 0x80;
+
+    }
+
+}
+
+void Ghash() {
 
 }
 
@@ -281,7 +353,7 @@ void shiftrow(uint8_t *transfered_text, uint8_t *shifted_text)
 uint8_t multiply(uint8_t value)
 {
   uint8_t temp = value;
-  
+
   if(temp < 0x80){
     temp = temp << 1;
     return temp;
@@ -309,7 +381,7 @@ void mixcolumn(uint8_t *shifted_text, uint8_t *mixed_text)
 
 void initialization_counter(uint8_t vector[], int count) {
     uint8_t incr = 0x00;
-    
+
     for(int k=0;k<count+1;k++) {
         for(int i=0;i<16;i++) {
             if(i == 12 || i == 13 || i == 14) {
@@ -322,17 +394,17 @@ void initialization_counter(uint8_t vector[], int count) {
             else {
                 counter[k][i] = vector[i];
             }
-            
+
         }
-        
+
         printf("\n");
     }
 }
 
 int plaintext_block(uint8_t *plaintext, int text_length, int count) {
-    
+
      int text_count = 0;
-     
+
      while(text_length > 0) {
          if(text_length >= 16) {
            for(int i=0;i<16;i++) {
@@ -344,12 +416,12 @@ int plaintext_block(uint8_t *plaintext, int text_length, int count) {
          }
          else {
             int zero_pad = 16 - text_length;
-            
+
             for(int i=0;i<text_length;i++) {
                 text[count][i] = plaintext[text_count];
                 text_count = text_count + 1;
             }
-            
+
             for(int i=text_length-1;i<zero_pad;i++) {
                 text[count][i] = 0x00;
                 text_count = text_count + 1;
@@ -358,7 +430,7 @@ int plaintext_block(uint8_t *plaintext, int text_length, int count) {
             count++;
         }
     }
-    
+
     return count;
-    
+
 }
