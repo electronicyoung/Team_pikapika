@@ -1,60 +1,11 @@
-/*
- * Copyright (c) 2015-2019, Texas Instruments Incorporated
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * *  Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- *
- * *  Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * *  Neither the name of Texas Instruments Incorporated nor the names of
- *    its contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
 
-/*
- *  ======== hello.c ========
- */
-
-/* XDC Module Headers */
-#include <xdc/std.h>
-#include <xdc/runtime/System.h>
-
-/* BIOS Module Headers */
-#include <ti/sysbios/BIOS.h>
-
-#include <ti/drivers/Board.h>
 
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 
 
-/*
- *  ======== main ========
- */
-
-#include <stdint.h>
-
-int plaintext_block(uint8_t *plaintext, int text_length, int cnt);
+int plaintext_block(uint8_t *plaintext, int text_length, int counts);
 void initialization_counter(uint8_t vector[], int count);
 void keyExpansion(uint8_t *allocated_key);
 void RotWord(uint8_t *col_block, uint8_t *rot_col_block);
@@ -145,23 +96,23 @@ void AES_Encrypt(uint8_t msg[], uint8_t enc_msg[], uint8_t keys[]) {
 }
 
 uint8_t msb_finder(uint32_t input){
-  uint32_t bit_mask = 0x80000000;
-  uint32_t temp = input;
-
-  return ((temp) >> 31);
-}
-
-uint8_t lsb_finder(uint32_t input){
-  uint32_t bit_mask = 0x1;
+  uint32_t bit_mask = 0x01;
   uint32_t temp = input;
 
   return ((temp & bit_mask));
 }
 
+uint8_t lsb_finder(uint32_t input){
+  uint32_t bit_mask = 0x80000000;
+  uint32_t temp = input;
+
+  return ((temp) >> 31);
+  
+}
+
 
 void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
-    uint32_t bit_shifter = 0x1;
-    unsigned char shift_cnt = 0;
+    uint32_t bit_shifter = 0x80000000;
     unsigned char i =0;
     unsigned char j =0;
     unsigned char v_lsb_flag = 0;
@@ -172,15 +123,15 @@ void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
 
     uint32_t r[4] = {0,0,0,0};
 
-    memcpy(&v[0], &x[0], 4);
-    memcpy(&v[1], &x[1], 4);
-    memcpy(&v[2], &x[2], 4);
-    memcpy(&v[3], &x[3], 4);
+    memcpy(&v[0], &y[0], 4);
+    memcpy(&v[1], &y[1], 4);
+    memcpy(&v[2], &y[2], 4);
+    memcpy(&v[3], &y[3], 4);
 
     r[0] = 0xe1000000;
 
     for( i=0; i<4; i++){
-        temp = y[i];//copy y to temp
+        temp = x[i];//copy y to temp
         for( j=0; j<32; j++){
             if( ( temp & bit_shifter) == bit_shifter){//bit masking one by one
                 z[0] = ( (uint32_t)z[0] ^ v[0] );
@@ -189,47 +140,52 @@ void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
                 z[3] = ( (uint32_t)z[3] ^ v[3] );
 
             }
-            if(v[3] >> 31){//When LSB of Vi is 0
+            if(msb_finder(v[3])){//When LSB of Vi is 0
             v_lsb_flag = 1;
 
            }
 
 
-            v[3] = v[3] << 1;
+         //   v[0] = v[0] >> 1;
 
+            v[3] = v[3] >> 1;
+            
             temp2 = v[2];
             if(msb_finder(temp2)){//if lsb of v[1] is '1'
-               v[3] = (uint32_t)v[3] | 0x1;//write MSB as 1
+               v[3] = (uint32_t)v[3] |  0x80000000;//write MSB as 1
             }
-            v[2] = v[2] << 1;
+            
+            
+            
+             v[2] = v[2] >> 1;
 
             temp2 = v[1];
             if(msb_finder(temp2)){
-               v[2] = (uint32_t)v[2] | 0x1;
+               v[2] = (uint32_t)v[2] |  0x80000000;
             }
 
-            v[1] = v[1] << 1;
-
+           v[1] = v[1] >> 1;
+ 
             temp2 = v[0];
             if(msb_finder(temp2)){
-               v[1] = (uint32_t)v[1] | 0x1;
+               v[1] = (uint32_t)v[1] |  0x80000000;
             }
-            v[0] = v[0] << 1;
-
-
+            
+            v[0] = v[0] >> 1;
+            
             if( v_lsb_flag == 1){
-                v[3] = v[3] ^ r[3];
-                v[2] = v[2] ^ r[2];
-                v[1] = v[1] ^ r[1];
+               // v[3] = v[3] ^ r[3];
+               // v[2] = v[2] ^ r[2];
+               // v[1] = v[1] ^ r[1];
                 v[0] = v[0] ^ r[0];
                 v_lsb_flag = 0;
             }
 
 
-            bit_shifter = bit_shifter << 1;
+            bit_shifter = bit_shifter >> 1;
 
         }//end of 32bit loop
-        bit_shifter = 0x1;
+        bit_shifter = 0x80000000;
 
     }
 
@@ -405,37 +361,37 @@ void initialization_counter(uint8_t vector[], int count) {
     }
 }
 
-int plaintext_block(uint8_t *plaintext, int text_length, int count) {
+int plaintext_block(uint8_t *plaintext, int text_length, int counts) {
     int i;
      int text_count = 0;
 
      while(text_length > 0) {
          if(text_length >= 16) {
            for( i=0;i<16;i++) {
-             text[count][i] = plaintext[text_count];
+             text[counts][i] = plaintext[text_count];
              text_count = text_count + 1;
            }
            text_length = text_length - text_count;
-           count++;
+           counts++;
          }
          else {
             int zero_pad = 16 - text_length;
 
             for( i=0;i<text_length;i++) {
-                text[count][i] = plaintext[text_count];
+                text[counts][i] = plaintext[text_count];
                 text_count = text_count + 1;
             }
 
             for( i=text_length-1;i<zero_pad;i++) {
-                text[count][i] = 0x00;
+                text[counts][i] = 0x00;
                 text_count = text_count + 1;
             }
             text_length = text_length - text_count;
-            count++;
+            counts++;
         }
     }
 
-    return count;
+    return counts;
 
 }
 
@@ -444,12 +400,12 @@ int main()
 {
     /* Call driver init functions */
     int i, j;
-    Board_init();
+    //Board_init();
 
 
 
 
-    System_printf("Start!\n");
+    //System_printf("Start!\n");
 
     uint8_t message[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
@@ -468,12 +424,20 @@ int main()
     Rcon(Rconstant);
     keyExpansion(key);
 
-    int count = plaintext_block(message,msg_length,counting);
-    initialization_counter(iv,count);
+    int counts = plaintext_block(message,msg_length,counting);
+    initialization_counter(iv,counts);
 
+    printf("The plaintext block is");
+    for(int i=0; i<counts;i++) {
+        for(int j=0;j<16;j++) {
+            printf("%02x", text[i][j]);
+        }
+        printf("\n");
+        
+    }
     AES_Encrypt(Hash, Hash_text, key);
 
-   for( j=0;j<count;j++){
+   for( j=0;j<counts;j++){
 
         int c = j + 1;
         AES_Encrypt(counter[c], encrypt_msg, key);
@@ -500,6 +464,10 @@ int main()
     memcpy(&input_B[2], Hash_text+8, 4);
     memcpy(&input_B[3], Hash_text+12, 4);
 
+  // for(i<0;i<4;i++) {
+   //    printf("%02x", input_A[0]);
+  // }
+   
    for(i=0;i<4;i++) {
        volatile uint32_t temp = input_A[i];
        input_A[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
@@ -521,6 +489,6 @@ int main()
      *  and start the scheduler and kick BIOS into gear.  But, this program
      *  is a simple sanity test and calls BIOS_exit() instead.
      */
-    BIOS_exit(0);  /* terminates program and dumps SysMin output */
+    //BIOS_exit(0);  /* terminates program and dumps SysMin output */
     return(0);
 }
