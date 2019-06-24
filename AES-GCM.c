@@ -1,6 +1,58 @@
+/*
+ * Copyright (c) 2015-2019, Texas Instruments Incorporated
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * *  Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * *  Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * *  Neither the name of Texas Instruments Incorporated nor the names of
+ *    its contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+ * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+ * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*
+ *  ======== hello.c ========
+ */
+
+/* XDC Module Headers */
+#include <xdc/std.h>
+#include <xdc/runtime/System.h>
+
+/* BIOS Module Headers */
+#include <ti/sysbios/BIOS.h>
+
+#include <ti/drivers/Board.h>
+
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+
+
+/*
+ *  ======== main ========
+ */
+
+#include <stdint.h>
 
 int plaintext_block(uint8_t *plaintext, int text_length, int cnt);
 void initialization_counter(uint8_t vector[], int count);
@@ -60,75 +112,13 @@ uint8_t Hash_text[16];
 
 uint8_t Rconstant[] = {0x01, 0x00, 0x00, 0x00};
 
-int main()
-{
 
-    uint8_t message[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
-    uint8_t Hash[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
-    uint8_t iv[] ={0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
-    int msg_length = sizeof(message)/sizeof(uint8_t);
-
-    uint8_t key[]= {0x00,0x00,0x00,0x00,
-                    0x00,0x00,0x00,0x00,
-                    0x00,0x00,0x00,0x00,
-                    0x00,0x00,0x00,0x00
-                                       };
-
-    Rcon(Rconstant);
-    keyExpansion(key);
-
-    int count = plaintext_block(message,msg_length,counting);
-    initialization_counter(iv,count);
-
-    AES_Encrypt(Hash, Hash_text, key);
-
-   for(int j=0;j<count;j++){
-
-        int c = j + 1;
-        AES_Encrypt(counter[c], encrypt_msg, key);
-
-        for(int i=0;i<16;i++) {
-            encrypted_msg[j][i] = text[j][i] ^ encrypt_msg[i];
-        }
-    }
-
-    char i,k;
-
-    uint32_t *input_Z[4] = {0,0,0,0};
-
-    uint32_t *input_A[4];
-    uint32_t *input_B[4];
-
-    memcpy(&input_A[0], encrypted_msg[1], 4);
-    memcpy(&input_A[1], encrypted_msg[1]+4, 4);
-    memcpy(&input_A[2], encrypted_msg[1]+8, 4);
-    memcpy(&input_A[3], encrypted_msg[1]+12, 4);
-
-    memcpy(&input_B[0], Hash_text, 4);
-    memcpy(&input_B[1], Hash_text+4, 4);
-    memcpy(&input_B[2], Hash_text+8, 4);
-    memcpy(&input_B[3], Hash_text+12, 4);
-
-   //= 0x5E2EC746917062882C85B0685353DEB7
-    galois_multiply(input_A, input_B, input_Z);
-
-    printf("z[0] : %x\n", input_Z[0]);
-    printf("z[1] : %x\n", input_Z[1]);
-    printf("z[2] : %x\n", input_Z[2]);
-    printf("z[3] : %x\n", input_Z[3]);
-
-   return 0;
-
-}
 
 void AES_Encrypt(uint8_t msg[], uint8_t enc_msg[], uint8_t keys[]) {
-
+    int k, i;
     RoundKeys(msg, keys, enc_msg);
 
-    for(int k=1;k<11;k++) {
+    for(k=1;k<11;k++) {
         if(k == 10) {
             Subbyte(enc_msg, sub_text, 16);
 
@@ -136,7 +126,7 @@ void AES_Encrypt(uint8_t msg[], uint8_t enc_msg[], uint8_t keys[]) {
 
             RoundKeys(shift_text, No_of_Expanded_keys[k].keys, enc_msg);
             printf("last round enc_msg : ");
-            for(int i=0; i<16; i++){
+            for( i=0; i<16; i++){
                 printf("%02x", enc_msg[i]);
             }
             printf("\n");
@@ -154,16 +144,23 @@ void AES_Encrypt(uint8_t msg[], uint8_t enc_msg[], uint8_t keys[]) {
     }
 }
 
+uint8_t msb_finder(uint32_t input){
+  uint32_t bit_mask = 0x80000000;
+  uint32_t temp = input;
+
+  return ((temp) >> 31);
+}
+
 uint8_t lsb_finder(uint32_t input){
   uint32_t bit_mask = 0x1;
   uint32_t temp = input;
 
-  return (temp & bit_mask);
+  return ((temp & bit_mask));
 }
 
 
 void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
-    uint32_t bit_shifter = 0x80;
+    uint32_t bit_shifter = 0x1;
     unsigned char shift_cnt = 0;
     unsigned char i =0;
     unsigned char j =0;
@@ -176,9 +173,9 @@ void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
     uint32_t r[4] = {0,0,0,0};
 
     memcpy(&v[0], &x[0], 4);
-    memcpy(&v[1], &x[1]+4, 4);
-    memcpy(&v[2], &x[2]+8, 4);
-    memcpy(&v[3], &x[3]+12, 4);
+    memcpy(&v[1], &x[1], 4);
+    memcpy(&v[2], &x[2], 4);
+    memcpy(&v[3], &x[3], 4);
 
     r[0] = 0xe1000000;
 
@@ -192,36 +189,39 @@ void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
                 z[3] = ( (uint32_t)z[3] ^ v[3] );
 
             }
-            if( v[0] & 0x1 == 1){//When LSB of Vi is 0
+            if(v[3] >> 31){//When LSB of Vi is 0
             v_lsb_flag = 1;
 
            }
 
-            v[0] = v[0] >> 1;
 
-            temp2 = v[1];
-            if(lsb_finder(temp2)){//if lsb of v[1] is '1'
-               v[0] = (uint32_t)v[0] | 0x80000000;//write MSB as 1
-            }
-            v[1] = v[1] >> 1;
+            v[3] = v[3] << 1;
 
             temp2 = v[2];
-            if(lsb_finder(temp2)){
-               v[1] = (uint32_t)v[1] | 0x80000000;
+            if(msb_finder(temp2)){//if lsb of v[1] is '1'
+               v[3] = (uint32_t)v[3] | 0x1;//write MSB as 1
             }
-            v[2] = v[2] >> 1;
+            v[2] = v[2] << 1;
 
-            temp2 = v[3];
-            if(lsb_finder(temp2)){
-               v[2] = (uint32_t)v[2] | 0x80000000;
+            temp2 = v[1];
+            if(msb_finder(temp2)){
+               v[2] = (uint32_t)v[2] | 0x1;
             }
-            v[3] = v[3] >> 1;
+
+            v[1] = v[1] << 1;
+
+            temp2 = v[0];
+            if(msb_finder(temp2)){
+               v[1] = (uint32_t)v[1] | 0x1;
+            }
+            v[0] = v[0] << 1;
+
 
             if( v_lsb_flag == 1){
-                v[3] = (v[3] >> 1) ^ r[3];
-                v[2] = (v[2] >> 1) ^ r[2];
-                v[1] = (v[1] >> 1) ^ r[1];
-                v[0] = (v[0] >> 1) ^ r[0];
+                v[3] = v[3] ^ r[3];
+                v[2] = v[2] ^ r[2];
+                v[1] = v[1] ^ r[1];
+                v[0] = v[0] ^ r[0];
                 v_lsb_flag = 0;
             }
 
@@ -229,7 +229,7 @@ void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
             bit_shifter = bit_shifter << 1;
 
         }//end of 32bit loop
-        bit_shifter = 0x80;
+        bit_shifter = 0x1;
 
     }
 
@@ -240,7 +240,8 @@ void Ghash() {
 }
 
 void RoundKeys(uint8_t plain_message[], uint8_t cipher_key[], uint8_t encrypted_message[]) {
-    for(uint8_t i=0; i<16; i++) {
+    unsigned char i;
+    for(i=0; i<16; i++) {
         encrypted_message[i] = plain_message[i] ^ cipher_key[i];
     }
 }
@@ -255,8 +256,9 @@ void RotWord(uint8_t *col_block, uint8_t *rot_col_block) {
 void Subbyte(uint8_t *plain_text, uint8_t *transfered_text, unsigned int length)
 {
   uint8_t row_num, col_num = 0;
+  int i;
 
-  for(int i = 0; i < length; i++){
+  for( i = 0; i < length; i++){
       row_num = (plain_text[i] & 0xF0) >> 4;
       col_num = plain_text[i] & 0x0F;
       transfered_text[i] = sbox[16*row_num + col_num];
@@ -264,8 +266,8 @@ void Subbyte(uint8_t *plain_text, uint8_t *transfered_text, unsigned int length)
 }
 
 void Rcon(uint8_t *Rcon) {
-
-   for(int j=4; j<40; j++) {
+    int j;
+   for(j=4; j<40; j++) {
        if(j == 32) {
            Rcon[j] = 0x1b;
        }
@@ -280,9 +282,9 @@ void Rcon(uint8_t *Rcon) {
 
 
 void keyExpansion(uint8_t *allocated_key) {
-
+    int k, i;
     int count = 0;
-    for(int k=0;k<11;k++) {
+    for( k=0;k<11;k++) {
         if(k == 0) {
           while(count < 16) {
               No_of_Expanded_keys[k].keys[count] = allocated_key[count];
@@ -297,20 +299,20 @@ void keyExpansion(uint8_t *allocated_key) {
 
             uint8_t first_key_block[] = {No_of_Expanded_keys[k-1].keys[0],No_of_Expanded_keys[k-1].keys[1],No_of_Expanded_keys[k-1].keys[2],No_of_Expanded_keys[k-1].keys[3]};
 
-            for(int i=0; i<4; i++){
+            for( i=0; i<4; i++){
                 No_of_Expanded_keys[k].keys[i] = first_key_block[i] ^ sub_block[i] ^ Rconstant[count];
                 count = count + 1;
             }
 
-            for(int i=0; i<4; i++){
+            for( i=0; i<4; i++){
                 No_of_Expanded_keys[k].keys[i+4] =  No_of_Expanded_keys[k].keys[i] ^ No_of_Expanded_keys[k-1].keys[i+4];
             }
 
-            for(int i=0; i<4; i++){
+            for( i=0; i<4; i++){
                 No_of_Expanded_keys[k].keys[i+8] =  No_of_Expanded_keys[k].keys[i+4] ^ No_of_Expanded_keys[k-1].keys[i+8];
             }
 
-            for(int i=0; i<4; i++){
+            for( i=0; i<4; i++){
                 No_of_Expanded_keys[k].keys[i+12] =  No_of_Expanded_keys[k].keys[i+8] ^ No_of_Expanded_keys[k-1].keys[i+12];
             }
 
@@ -322,6 +324,7 @@ void keyExpansion(uint8_t *allocated_key) {
 void shiftrow(uint8_t *transfered_text, uint8_t *shifted_text)
 {
       uint8_t temp[6];
+      int i;
       temp[0] = transfered_text[1];
 
       temp[1] = transfered_text[2];
@@ -331,7 +334,7 @@ void shiftrow(uint8_t *transfered_text, uint8_t *shifted_text)
       temp[4] = transfered_text[7];
       temp[5] = transfered_text[11];
 
-      for(int i = 0; i<4; i++){
+      for( i = 0; i<4; i++){
       shifted_text[4*i] = transfered_text[4*i];
       }
       shifted_text[1] = transfered_text[5];
@@ -368,7 +371,8 @@ uint8_t multiply(uint8_t value)
 void mixcolumn(uint8_t *shifted_text, uint8_t *mixed_text)
 {
     //uint8_t temp;
-    for(int i = 0; i<4; i++){
+    int i;
+    for( i = 0; i<4; i++){
       //temp = shifted_text[i*4] ^ shifted_text[i*4 +1] ^ shifted_text[i*4 + 2] ^ shifted_text[i*4 + 3];
       mixed_text[i*4]     = (multiply(shifted_text[i*4]))^(multiply(shifted_text[(i*4)+1])^shifted_text[(i*4)+1])^shifted_text[(i*4)+2]^shifted_text[(i*4)+3];
       mixed_text[i*4+1]   = shifted_text[i*4]^(multiply(shifted_text[i*4+1]))^(multiply(shifted_text[i*4+2])^shifted_text[i*4+2])^shifted_text[i*4+3];
@@ -381,9 +385,9 @@ void mixcolumn(uint8_t *shifted_text, uint8_t *mixed_text)
 
 void initialization_counter(uint8_t vector[], int count) {
     uint8_t incr = 0x00;
-
-    for(int k=0;k<count+1;k++) {
-        for(int i=0;i<16;i++) {
+    int k, i;
+    for( k=0;k<count+1;k++) {
+        for( i=0;i<16;i++) {
             if(i == 12 || i == 13 || i == 14) {
                 counter[k][i] = 0x00;
             }
@@ -402,12 +406,12 @@ void initialization_counter(uint8_t vector[], int count) {
 }
 
 int plaintext_block(uint8_t *plaintext, int text_length, int count) {
-
+    int i;
      int text_count = 0;
 
      while(text_length > 0) {
          if(text_length >= 16) {
-           for(int i=0;i<16;i++) {
+           for( i=0;i<16;i++) {
              text[count][i] = plaintext[text_count];
              text_count = text_count + 1;
            }
@@ -417,12 +421,12 @@ int plaintext_block(uint8_t *plaintext, int text_length, int count) {
          else {
             int zero_pad = 16 - text_length;
 
-            for(int i=0;i<text_length;i++) {
+            for( i=0;i<text_length;i++) {
                 text[count][i] = plaintext[text_count];
                 text_count = text_count + 1;
             }
 
-            for(int i=text_length-1;i<zero_pad;i++) {
+            for( i=text_length-1;i<zero_pad;i++) {
                 text[count][i] = 0x00;
                 text_count = text_count + 1;
             }
@@ -433,4 +437,90 @@ int plaintext_block(uint8_t *plaintext, int text_length, int count) {
 
     return count;
 
+}
+
+
+int main()
+{
+    /* Call driver init functions */
+    int i, j;
+    Board_init();
+
+
+
+
+    System_printf("Start!\n");
+
+    uint8_t message[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+    uint8_t Hash[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+    uint8_t iv[] ={0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+    int msg_length = sizeof(message)/sizeof(uint8_t);
+
+    uint8_t key[]= {0x00,0x00,0x00,0x00,
+                    0x00,0x00,0x00,0x00,
+                    0x00,0x00,0x00,0x00,
+                    0x00,0x00,0x00,0x00
+                                       };
+
+    Rcon(Rconstant);
+    keyExpansion(key);
+
+    int count = plaintext_block(message,msg_length,counting);
+    initialization_counter(iv,count);
+
+    AES_Encrypt(Hash, Hash_text, key);
+
+   for( j=0;j<count;j++){
+
+        int c = j + 1;
+        AES_Encrypt(counter[c], encrypt_msg, key);
+
+        for( i=0;i<16;i++) {
+            encrypted_msg[j][i] = text[j][i] ^ encrypt_msg[i];
+        }
+    }
+
+
+
+    uint32_t *input_Z[4] = {0,0,0,0};
+
+    uint32_t *input_A[4];
+    uint32_t *input_B[4];
+
+    memcpy(&input_A[0], encrypted_msg[1], 4);
+    memcpy(&input_A[1], encrypted_msg[1]+4, 4);
+    memcpy(&input_A[2], encrypted_msg[1]+8, 4);
+    memcpy(&input_A[3], encrypted_msg[1]+12, 4);
+
+    memcpy(&input_B[0], Hash_text, 4);
+    memcpy(&input_B[1], Hash_text+4, 4);
+    memcpy(&input_B[2], Hash_text+8, 4);
+    memcpy(&input_B[3], Hash_text+12, 4);
+
+   for(i=0;i<4;i++) {
+       volatile uint32_t temp = input_A[i];
+       input_A[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+       temp = input_B[i];
+       input_B[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+    }
+   //= 0x5E2EC746/91706288/2C85B068/5353DEB7
+    galois_multiply(input_A, input_B, input_Z);
+//0x0388DACE/60B6A392/F328C2B9/71B2FE78
+//0x66E94BD4/EF8A2C3B/884CFA59/CA342B2E
+    printf("z[0] : %x\n", input_Z[0]);
+    printf("z[1] : %x\n", input_Z[1]);
+    printf("z[2] : %x\n", input_Z[2]);
+    printf("z[3] : %x\n", input_Z[3]);
+
+
+    /*
+     *  normal BIOS programs, would call BIOS_start() to enable interrupts
+     *  and start the scheduler and kick BIOS into gear.  But, this program
+     *  is a simple sanity test and calls BIOS_exit() instead.
+     */
+    BIOS_exit(0);  /* terminates program and dumps SysMin output */
+    return(0);
 }
