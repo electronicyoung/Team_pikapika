@@ -84,6 +84,7 @@ uint32_t *length_add[2] = { 0 };
 
 uint32_t *Total_length[4] = { 0 };
 
+uint32_t *tag[4] = { 0 };
 
 void AES_Encrypt(uint8_t msg[], uint8_t enc_msg[], uint8_t keys[]) {
     int k, i;
@@ -232,11 +233,14 @@ void Ghash(uint32_t *input_Z[4], uint32_t *input_A[4], uint32_t *input_B[4], int
          temp = input_B[i];
          input_B[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
       }
+    
+      Total_length[1] = auth_len;
+      Total_length[3] = counts*128;
       
       //Need to define xor operation of auth data and tag operation
       
-      if(k == 0) {
-           
+      if(k == 0 && auth_len != 0) {
+          
       }
       if(k > 0) {
           for(i=0;i<4;i++) {
@@ -252,9 +256,6 @@ void Ghash(uint32_t *input_Z[4], uint32_t *input_A[4], uint32_t *input_B[4], int
       input_Z[3] = 0;
      
       galois_multiply(input_A, input_B, input_Z);
-  
-      Total_length[1] = auth_len;
-      Total_length[3] = counts*128;
       
       if(k == counts - 1) {
  
@@ -276,18 +277,36 @@ void Ghash(uint32_t *input_Z[4], uint32_t *input_A[4], uint32_t *input_B[4], int
          printf("Z[1] : %x\n", input_Z[1]);
          printf("Z[2] : %x\n", input_Z[2]);
          printf("Z[3] : %x\n", input_Z[3]);
+         
+         memcpy(&input_A[0], init_encrypt_msg, 4);
+         memcpy(&input_A[1], init_encrypt_msg+4, 4);
+         memcpy(&input_A[2], init_encrypt_msg+8, 4);
+         memcpy(&input_A[3], init_encrypt_msg+12, 4);
+          
+         for(i=0;i<4;i++) {
+           volatile uint32_t temp = input_A[i];
+           input_A[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+         }
+         
+         for(i=0;i<4;i++) {
+             uint32_t temp1 = input_A[i];
+             uint32_t temp2 = input_Z[i];
+             
+             tag[i] = temp1 ^ temp2;
+         }
+         
+         
+         printf("\n");  
+         printf("Tag[0] : %x\n", tag[0]);
+         printf("Tag[1] : %x\n", tag[1]);
+         printf("Tag[2] : %x\n", tag[2]);
+         printf("Tag[3] : %x\n", tag[3]);
       
       }
       
   }
 }
    
-    
-   //= 0x5E2EC746/91706288/2C85B068/5353DEB7
-//0x0388DACE/60B6A392/F328C2B9/71B2FE78
-//0x66E94BD4/EF8A2C3B/884CFA59/CA342B2E
-
-//}
 
 void RoundKeys(uint8_t plain_message[], uint8_t cipher_key[], uint8_t encrypted_message[]) {
     unsigned char i;
@@ -525,14 +544,18 @@ int main()
                          0xba, 0x63, 0x7b, 0x39,
                          0x1a, 0xaf, 0xd2, 0x55
     };
-    
+ 
+ /*   
     uint8_t add[] = {0xfe, 0xed, 0xfa, 0xce,
                      0xde, 0xad, 0xbe, 0xef,
                      0xfe, 0xed, 0xfa, 0xce,
                      0xde, 0xad, 0xbe, 0xef,
                      0xab, 0xad, 0xda, 0xd2
     };
-    
+ */
+ 
+   uint8_t add[] = {};
+   
     //uint8_t message[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     
     uint8_t Hash[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
