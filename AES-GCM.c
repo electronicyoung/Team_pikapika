@@ -1,11 +1,19 @@
 
+/* XDC Module Headers */
+#include <xdc/std.h>
+#include <xdc/runtime/System.h>
+
+/* BIOS Module Headers */
+#include <ti/sysbios/BIOS.h>
+
+#include <ti/drivers/Board.h>
 
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 
 
-int plaintext_block(uint8_t *plaintext, int text_length, int counts);
+int plaintext_block(uint8_t *plaintext, int text_length);
 void initialization_counter(uint8_t vector[], int count);
 void keyExpansion(uint8_t *allocated_key);
 void RotWord(uint8_t *col_block, uint8_t *rot_col_block);
@@ -18,6 +26,8 @@ void AES_Encrypt(uint8_t msg[], uint8_t enc_msg[], uint8_t key[]);
 uint8_t multiply(uint8_t value);
 uint8_t lsb_finder(uint32_t input);
 void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]);
+void Ghash(uint32_t *input_Z[4], uint32_t *input_A[4], uint32_t *input_B[4], int counts);
+
 
 static const uint8_t sbox[256] = {
                   //0     1    2      3     4    5     6     7      8    9     A      B    C     D     E     F
@@ -42,12 +52,13 @@ struct Round_keys {
     uint8_t keys[16];
 };
 
+//uint32_t *hashed_msg[4];
+
+
 uint8_t text[20][16] = { 0 };
 
 uint8_t encrypted_msg[20][16] = { 0 };
 uint8_t counter[20][20] = { 0 };
-
-int counting = 0;
 
 struct Round_keys No_of_Expanded_keys[11];
 
@@ -63,7 +74,13 @@ uint8_t Hash_text[16];
 
 uint8_t Rconstant[] = {0x01, 0x00, 0x00, 0x00};
 
+uint8_t init_encrypt_msg[16];
 
+uint32_t *length_cipher[2] = { 0 };
+
+uint32_t *Total_length[4] = { 0 };
+
+uint32_t *ciphertext[4] = { 0 };
 
 void AES_Encrypt(uint8_t msg[], uint8_t enc_msg[], uint8_t keys[]) {
     int k, i;
@@ -191,9 +208,89 @@ void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
 
 }
 
-void Ghash() {
+void Ghash(uint32_t *input_Z[4], uint32_t *input_A[4], uint32_t *input_B[4], int counts) {
+  
+    int k,i,j,l;
+    uint32_t bit_shifter = 0x80000000;
+    
+    for(k=0;k<counts;k++) {
+      memcpy(&input_A[0], encrypted_msg[k], 4);
+      memcpy(&input_A[1], encrypted_msg[k]+4, 4);
+      memcpy(&input_A[2], encrypted_msg[k]+8, 4);
+      memcpy(&input_A[3], encrypted_msg[k]+12, 4);
 
+      memcpy(&input_B[0], Hash_text, 4);
+      memcpy(&input_B[1], Hash_text+4, 4);
+      memcpy(&input_B[2], Hash_text+8, 4);
+      memcpy(&input_B[3], Hash_text+12, 4);
+      
+      for(i=0;i<4;i++) {
+         volatile uint32_t temp = input_A[i];
+         input_A[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+         temp = input_B[i];
+         input_B[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+      }
+      
+      if(k > 0) {
+          for(i=0;i<4;i++) {
+              uint32_t temp1 = input_A[i];
+              uint32_t temp2 = input_Z[i];
+              input_A[i] = temp1 ^ temp2;
+          }
+      }
+       
+      input_Z[0] = 0;
+      input_Z[1] = 0;
+      input_Z[2] = 0;
+      input_Z[3] = 0;
+     
+      galois_multiply(input_A, input_B, input_Z);
+      
+      Total_length[3] = 0x00000200;
+      
+      if(k == counts - 1) {
+          
+         ciphertext[0] = input_A[0];
+         ciphertext[1] = input_A[1];
+         ciphertext[2] = input_A[2];
+         ciphertext[3] = input_A[3];
+         
+         for(l=0;l<4;l++) {
+            uint32_t temp3 = Total_length[l];
+            uint32_t temp4 = input_Z[l];
+            input_A[l] = temp4  ^ temp3;
+         }
+   
+         input_Z[0] = 0;
+         input_Z[1] = 0;
+         input_Z[2] = 0;
+         input_Z[3] = 0;
+         
+         galois_multiply(input_A, input_B, input_Z);
+         
+         printf("\n");  
+         printf("Z[0] : %x\n", input_Z[0]);
+         printf("Z[1] : %x\n", input_Z[1]);
+         printf("Z[2] : %x\n", input_Z[2]);
+         printf("Z[3] : %x\n", input_Z[3]);
+      
+         printf("\n");  
+         printf("C[0] : %x\n", ciphertext[0]);
+         printf("C[1] : %x\n", ciphertext[1]);
+         printf("C[2] : %x\n", ciphertext[2]);
+         printf("C[3] : %x\n", ciphertext[3]);
+      
+      }
+      
+  }
 }
+   
+    
+   //= 0x5E2EC746/91706288/2C85B068/5353DEB7
+//0x0388DACE/60B6A392/F328C2B9/71B2FE78
+//0x66E94BD4/EF8A2C3B/884CFA59/CA342B2E
+
+//}
 
 void RoundKeys(uint8_t plain_message[], uint8_t cipher_key[], uint8_t encrypted_message[]) {
     unsigned char i;
@@ -340,9 +437,9 @@ void mixcolumn(uint8_t *shifted_text, uint8_t *mixed_text)
 }
 
 void initialization_counter(uint8_t vector[], int count) {
-    uint8_t incr = 0x00;
+    uint8_t incr = 0x01;
     int k, i;
-    for( k=0;k<count+1;k++) {
+    for( k=0;k<=count;k++) {
         for( i=0;i<16;i++) {
             if(i == 12 || i == 13 || i == 14) {
                 counter[k][i] = 0x00;
@@ -354,6 +451,8 @@ void initialization_counter(uint8_t vector[], int count) {
             else {
                 counter[k][i] = vector[i];
             }
+            
+            printf("%02x", counter[k][i]);
 
         }
 
@@ -361,20 +460,22 @@ void initialization_counter(uint8_t vector[], int count) {
     }
 }
 
-int plaintext_block(uint8_t *plaintext, int text_length, int counts) {
+int plaintext_block(uint8_t *plaintext, int text_length) {
     int i;
      int text_count = 0;
-
+     int counts = 0;
+     
+     
      while(text_length > 0) {
          if(text_length >= 16) {
            for( i=0;i<16;i++) {
              text[counts][i] = plaintext[text_count];
              text_count = text_count + 1;
            }
-           text_length = text_length - text_count;
+           text_length = text_length - 16;
            counts++;
          }
-         else {
+         else if(text_length < 16 && text_length != 0){
             int zero_pad = 16 - text_length;
 
             for( i=0;i<text_length;i++) {
@@ -384,9 +485,8 @@ int plaintext_block(uint8_t *plaintext, int text_length, int counts) {
 
             for( i=text_length-1;i<zero_pad;i++) {
                 text[counts][i] = 0x00;
-                text_count = text_count + 1;
             }
-            text_length = text_length - text_count;
+            text_length = 0;
             counts++;
         }
     }
@@ -400,36 +500,55 @@ int main()
 {
     /* Call driver init functions */
     int i, j;
-    //Board_init();
+    Board_init();
 
 
+    uint32_t *Z[4] = {0,0,0,0};
 
+    uint32_t *A[4];
+    uint32_t *B[4];
 
     //System_printf("Start!\n");
 
-    uint8_t message[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    uint8_t message[] = {0xd9, 0x31, 0x32, 0x25, 
+                         0xf8, 0x84, 0x06, 0xe5, 
+                         0xa5, 0x59, 0x09, 0xc5, 
+                         0xaf, 0xf5, 0x26, 0x9a,
+                         0x86, 0xa7, 0xa9, 0x53,
+                         0x15, 0x34, 0xf7, 0xda,
+                         0x2e, 0x4c, 0x30, 0x3d,
+                         0x8a, 0x31, 0x8a, 0x72,
+                         0x1c, 0x3c, 0x0c, 0x95,
+                         0x95, 0x68, 0x09, 0x53,
+                         0x2f, 0xcf, 0x0e, 0x24,
+                         0x49, 0xa6, 0xb5, 0x25,
+                         0xb1, 0x6a, 0xed, 0xf5,
+                         0xaa, 0x0d, 0xe6, 0x57,
+                         0xba, 0x63, 0x7b, 0x39,
+                         0x1a, 0xaf, 0xd2, 0x55
+    };
 
     uint8_t Hash[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-    uint8_t iv[] ={0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    uint8_t iv[] ={0xca, 0xfe, 0xba, 0xbe, 0xfa, 0xce, 0xdb, 0xad, 0xde, 0xca, 0xf8, 0x88};
 
     int msg_length = sizeof(message)/sizeof(uint8_t);
 
-    uint8_t key[]= {0x00,0x00,0x00,0x00,
-                    0x00,0x00,0x00,0x00,
-                    0x00,0x00,0x00,0x00,
-                    0x00,0x00,0x00,0x00
+    uint8_t key[]= {0xfe,0xff,0xe9,0x92,
+                    0x86,0x65,0x73,0x1c,
+                    0x6d,0x6a,0x8f,0x94,
+                    0x67,0x30,0x83,0x08
                                        };
 
     Rcon(Rconstant);
     keyExpansion(key);
 
-    int counts = plaintext_block(message,msg_length,counting);
+    int counts = plaintext_block(message,msg_length);
     initialization_counter(iv,counts);
-
+ 
     printf("The plaintext block is");
-    for(int i=0; i<counts;i++) {
-        for(int j=0;j<16;j++) {
+    for(i=0; i<counts;i++) {
+        for(j=0;j<16;j++) {
             printf("%02x", text[i][j]);
         }
         printf("\n");
@@ -437,9 +556,11 @@ int main()
     }
     AES_Encrypt(Hash, Hash_text, key);
 
+    AES_Encrypt(counter[0], init_encrypt_msg, key);
+    
    for( j=0;j<counts;j++){
-
-        int c = j + 1;
+       
+        int c = j+1;
         AES_Encrypt(counter[c], encrypt_msg, key);
 
         for( i=0;i<16;i++) {
@@ -448,40 +569,42 @@ int main()
     }
 
 
+    Ghash(Z, A, B, counts);
+    //uint32_t *input_Z[4] = {0,0,0,0};
 
-    uint32_t *input_Z[4] = {0,0,0,0};
+    //uint32_t *input_A[4];
+    //uint32_t *input_B[4];
 
-    uint32_t *input_A[4];
-    uint32_t *input_B[4];
+    //memcpy(&input_A[0], encrypted_msg[0], 4);
+    //memcpy(&input_A[1], encrypted_msg[0]+4, 4);
+    //memcpy(&input_A[2], encrypted_msg[0]+8, 4);
+    //memcpy(&input_A[3], encrypted_msg[0]+12, 4);
 
-    memcpy(&input_A[0], encrypted_msg[1], 4);
-    memcpy(&input_A[1], encrypted_msg[1]+4, 4);
-    memcpy(&input_A[2], encrypted_msg[1]+8, 4);
-    memcpy(&input_A[3], encrypted_msg[1]+12, 4);
+    //memcpy(&input_B[0], Hash_text, 4);
+    //memcpy(&input_B[1], Hash_text+4, 4);
+    //memcpy(&input_B[2], Hash_text+8, 4);
+    //memcpy(&input_B[3], Hash_text+12, 4);
 
-    memcpy(&input_B[0], Hash_text, 4);
-    memcpy(&input_B[1], Hash_text+4, 4);
-    memcpy(&input_B[2], Hash_text+8, 4);
-    memcpy(&input_B[3], Hash_text+12, 4);
-
-  // for(i<0;i<4;i++) {
-   //    printf("%02x", input_A[0]);
-  // }
-   
-   for(i=0;i<4;i++) {
-       volatile uint32_t temp = input_A[i];
-       input_A[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
-       temp = input_B[i];
-       input_B[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
-    }
+   //for(i=0;i<4;i++) {
+     //  volatile uint32_t temp = input_A[i];
+       //input_A[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+       //temp = input_B[i];
+       //input_B[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+    //}
    //= 0x5E2EC746/91706288/2C85B068/5353DEB7
-    galois_multiply(input_A, input_B, input_Z);
+    //galois_multiply(input_A, input_B, input_Z);
 //0x0388DACE/60B6A392/F328C2B9/71B2FE78
 //0x66E94BD4/EF8A2C3B/884CFA59/CA342B2E
-    printf("z[0] : %x\n", input_Z[0]);
-    printf("z[1] : %x\n", input_Z[1]);
-    printf("z[2] : %x\n", input_Z[2]);
-    printf("z[3] : %x\n", input_Z[3]);
+
+    //for(i=0;i<4;i++) {
+      // volatile uint32_t temp = input_Z[i];
+       //input_Z[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+    //}
+    
+   // printf("z[0] : %x\n", Z[0]);
+//    printf("z[1] : %x\n", Z[1]);
+  //  printf("z[2] : %x\n", Z[2]);
+    //printf("z[3] : %x\n", Z[3]);
 
 
     /*
