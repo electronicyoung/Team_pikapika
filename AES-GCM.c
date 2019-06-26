@@ -236,12 +236,7 @@ void Ghash(uint32_t *input_Z[4], uint32_t *input_A[4], uint32_t *input_B[4], int
       //Need to define xor operation of auth data and tag operation
       
       if(k == 0) {
-           memcpy(&input_A[0], encrypted_msg[k], 4);
-           memcpy(&input_A[1], encrypted_msg[k]+4, 4);
-           memcpy(&input_A[2], encrypted_msg[k]+8, 4);
-           memcpy(&input_A[3], encrypted_msg[k]+12, 4);
            
-           galois_multiply(input_A, input_B, input_Z);
       }
       if(k > 0) {
           for(i=0;i<4;i++) {
