@@ -85,6 +85,7 @@ uint32_t *tag[4] = { 0 };
 
 uint8_t auth_text[20][16] = { 0 };
 
+uint32_t *received_data[] = { 0 };
 
 void AES_Encrypt(uint8_t msg[], uint8_t enc_msg[], uint8_t keys[]) {
     int k, i;
@@ -611,7 +612,7 @@ int plaintext_block(uint8_t *plaintext, int text_length) {
 int main()
 {
     /* Call driver init functions */
-    int i, j;
+    int i, j,m;
     Board_init();
 
 
@@ -619,8 +620,22 @@ int main()
 
     uint32_t *A[4];
     uint32_t *B[4];
+    
+    uint8_t add[] = {0xfe, 0xed, 0xfa, 0xce,
+                     0xde, 0xad, 0xbe, 0xef,
+                     0xfe, 0xed, 0xfa, 0xce,
+                     0xde, 0xad, 0xbe, 0xef,
+                     0xab, 0xad, 0xda, 0xd2
+    };
+ 
+    uint8_t Hash[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-    uint8_t message[] = {0x42, 0x83, 0x1e, 0xc2,
+   // uint8_t iv[] ={0xca, 0xfe, 0xba, 0xbe, 0xfa, 0xce, 0xdb, 0xad, 0xde, 0xca, 0xf8, 0x88};
+   
+    uint8_t iv[12];
+    
+    
+   uint8_t message[] = { 0x42, 0x83, 0x1e, 0xc2,
                          0x21, 0x77, 0x74, 0x24,
                          0x4b, 0x72, 0x21, 0xb7,
                          0x84, 0xd0, 0xd4, 0x9c,
@@ -637,20 +652,8 @@ int main()
                          0x3d, 0x58, 0xe0, 0x91
     };
    
-    uint8_t add[] = {0xfe, 0xed, 0xfa, 0xce,
-                     0xde, 0xad, 0xbe, 0xef,
-                     0xfe, 0xed, 0xfa, 0xce,
-                     0xde, 0xad, 0xbe, 0xef,
-                     0xab, 0xad, 0xda, 0xd2
-    };
- 
-    uint8_t Hash[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-    uint8_t iv[] ={0xca, 0xfe, 0xba, 0xbe, 0xfa, 0xce, 0xdb, 0xad, 0xde, 0xca, 0xf8, 0x88};
-   
-    int msg_length = sizeof(message)/sizeof(uint8_t);
-    
-    int cipher_length = (sizeof(message)/sizeof(uint8_t))*8;
+    uint32_t *rec_tag[4] = { 0 };
     
     int auth_length = (sizeof(add)/sizeof(uint8_t))*8;
 
@@ -660,6 +663,72 @@ int main()
                     0x67,0x30,0x83,0x08
                                        };
 
+    received_data[0] = 24;
+    received_data[1] = 0x5bc94fbc;
+    received_data[2] = 0x3221a5db;
+    received_data[3] = 0x94fae95a;
+    received_data[4] = 0xe7121a47;
+    received_data[5] = 0xcafebabe;
+    received_data[6] = 0xfacedbad;
+    received_data[7] = 0xdecaf888;
+    received_data[8] = 0x42831ec2;
+    received_data[9] = 0x21777424;
+    received_data[10] = 0x4b7221b7;
+    received_data[11]= 0x84d0d49c;
+    received_data[12]= 0xe3aa212f;
+    received_data[13]= 0x2c02a4e0;
+    received_data[14]= 0x35c17e23;
+    received_data[15]= 0x29aca12e;
+    received_data[16]= 0x21d514b2;
+    received_data[17]= 0x5466931c;
+    received_data[18]= 0x7d8f6a5a;
+    received_data[19]= 0xac84aa05;
+    received_data[20]= 0x1ba30b39;
+    received_data[21]= 0x6a0aac97;
+    received_data[22]= 0x3d58e091;
+    received_data[23]= 0x5bc94fbc;
+
+ 
+   int msg_length = 
+    
+    printf("The message data is ....");
+    printf("\n");
+    for(i=8;i<(int)received_data[0];i++) {
+         uint32_t temp = received_data[i];
+         for(j=3;j>=0;j--) {
+            message[m] = (temp >> (j << 3)) & 0xff;
+            printf("%02x", message[m]);
+            m = m + 1;
+        }
+    }
+    
+    int msg_length = m;
+    
+    printf("\n");
+*/
+
+    m = 0;
+    
+    for(i=5;i<8;i++) {
+        uint32_t temp = received_data[i];
+        for(j=3;j>=0;j--) {
+           iv[m] = (temp >> (j << 3)) & 0xff;
+           printf("%02x", iv[m]);
+           m = m + 1;
+        }
+    }
+   
+    rec_tag[0] = received_data[1];
+    rec_tag[1] = received_data[2];
+    rec_tag[2] = received_data[3];
+    rec_tag[3] = received_data[4];
+    
+    
+    int msg_length = sizeof(message)/sizeof(uint8_t);
+    printf(" The length is %d", msg_length);
+   
+    int cipher_length = (sizeof(message)/sizeof(uint8_t))*8;
+  
     Rcon(Rconstant);
     keyExpansion(key);
 
@@ -699,4 +768,5 @@ int main()
      */
     //BIOS_exit(0);  /* terminates program and dumps SysMin output */
     return(0);
+}
 }
