@@ -52,8 +52,6 @@ struct Round_keys {
     uint8_t keys[16];
 };
 
-uint8_t ciphertext[20][16] = { 0 };
-
 uint8_t text[20][16] = { 0 };
 
 uint8_t encrypted_msg[20][16] = { 0 };
@@ -85,6 +83,7 @@ uint32_t *tag[4] = { 0 };
 
 uint8_t auth_text[20][16] = { 0 };
 
+uint32_t *transmit_data[] = { 0 };
 
 void AES_Encrypt(uint8_t msg[], uint8_t enc_msg[], uint8_t keys[]) {
     int k, i;
@@ -165,7 +164,8 @@ void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
             v_lsb_flag = 1;
 
            }
-
+    
+          //order is 0 1 2 3 >>>>> moving this way
 
          //   v[0] = v[0] >> 1;
 
@@ -386,14 +386,9 @@ void Ghash(uint32_t *input_Z[4], uint32_t *input_A[4], uint32_t *input_B[4], int
              uint32_t temp2 = input_Z[i];
              
              tag[i] = temp1 ^ temp2;
+             transmit_data[i] = tag[i];
+        
          }
-         
-         
-         printf("\n");  
-         printf("Tag[0] : %x\n", tag[0]);
-         printf("Tag[1] : %x\n", tag[1]);
-         printf("Tag[2] : %x\n", tag[2]);
-         printf("Tag[3] : %x\n", tag[3]);
       
       }
     }
@@ -622,7 +617,7 @@ int main()
 
     //System_printf("Start!\n");
 
-  /*
+  
     uint8_t message[] = {0xd9, 0x31, 0x32, 0x25, 
                          0xf8, 0x84, 0x06, 0xe5, 
                          0xa5, 0x59, 0x09, 0xc5, 
@@ -637,11 +632,11 @@ int main()
                          0x49, 0xa6, 0xb5, 0x25,
                          0xb1, 0x6a, 0xed, 0xf5,
                          0xaa, 0x0d, 0xe6, 0x57,
-                         0xba, 0x63, 0x7b, 0x39
-                         //0x1a, 0xaf, 0xd2, 0x55
+                         0xba, 0x63, 0x7b, 0x39,
+  //                       0x1a, 0xaf, 0xd2, 0x55
     };
-*/
-  
+
+  /*
    uint8_t message[] = { 0x42, 0x83, 0x1e, 0xc2,
                          0x21, 0x77, 0x74, 0x24,
                          0x4b, 0x72, 0x21, 0xb7,
@@ -658,6 +653,7 @@ int main()
                          0x6a, 0x0a, 0xac, 0x97,
                          0x3d, 0x58, 0xe0, 0x91
     };
+   */
    
     uint8_t add[] = {0xfe, 0xed, 0xfa, 0xce,
                      0xde, 0xad, 0xbe, 0xef,
@@ -689,7 +685,11 @@ int main()
                     0x67,0x30,0x83,0x08
                                        };
 
+    memcpy(&transmit_data[4], iv, 4);
+    memcpy(&transmit_data[5], iv+4, 4);
+    memcpy(&transmit_data[6], iv+8, 4);
     
+        
    // uint8_t key[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
    
     Rcon(Rconstant);
@@ -710,29 +710,64 @@ int main()
 
     AES_Encrypt(counter[0], init_encrypt_msg, key);
    
+    int zeros = 0;
+    int l;
+    int len, new_len;
+    int inc = 0;
+    int m, u;
+        
     for( j=0;j<counts;j++){
-       
+        
         int c = j+1;
         AES_Encrypt(counter[c], encrypt_msg, key);
-        printf("C[%d]", j);
         for( i=0;i<16;i++) {
              if(j == counts-1 && text[j][i] != 0x00) {
                  encrypted_msg[j][i] = text[j][i] ^ encrypt_msg[i];
-                 ciphertext[j][i] = encrypted_msg[j][i];
              }
              else if(j != counts-1) {
                   encrypted_msg[j][i] = text[j][i] ^ encrypt_msg[i];
-                  ciphertext[j][i] = encrypted_msg[j][i];
              }
              
-             printf("%02x", ciphertext[j][i]);
+             if(text[j][i] == 0x00) {
+                 zeros = zeros + 1;
+             }
+            
         }
-        printf("\n");
+;
+      
+        if(j == counts-1) {
+            m = 0;
+            new_len = (len) + ((16-zeros)/4);
+            for(l=len;l<new_len;l++) {
+                memcpy(&transmit_data[l], encrypted_msg[j]+m, 4);
+                printf("%d", l);
+                m  = m + 4;
+            }
+        }
+        else {
+            m = 0;
+            len = (7+inc)+4;
+            for(u=7+inc;u<len;u++) {
+                memcpy(&transmit_data[u], encrypted_msg[j]+m, 4);
+                m  = m + 4;
+            }
+            inc = inc + 4;
+        }
     }
 
-
+   
     Ghash(Z, A, B, counts, add, auth_length, cipher_length);
 
+    for(i=4;i<new_len;i++) {
+        volatile uint32_t temp = transmit_data[i];
+        transmit_data[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+        printf("transmit[%d] : %x\n", i, transmit_data[i]);
+        
+    }
+    
+    transmit_data[new_len] = new_len;
+    printf("transmit[] : %x\n", transmit_data[new_len]);
+    
     /*
      *  normal BIOS programs, would call BIOS_start() to enable interrupts
      *  and start the scheduler and kick BIOS into gear.  But, this program
