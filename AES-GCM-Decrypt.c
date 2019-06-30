@@ -633,8 +633,9 @@ int main()
    // uint8_t iv[] ={0xca, 0xfe, 0xba, 0xbe, 0xfa, 0xce, 0xdb, 0xad, 0xde, 0xca, 0xf8, 0x88};
    
     uint8_t iv[12];
+    uint8_t message[100] = {};
     
-    
+ /*   
    uint8_t message[] = { 0x42, 0x83, 0x1e, 0xc2,
                          0x21, 0x77, 0x74, 0x24,
                          0x4b, 0x72, 0x21, 0xb7,
@@ -651,7 +652,7 @@ int main()
                          0x6a, 0x0a, 0xac, 0x97,
                          0x3d, 0x58, 0xe0, 0x91
     };
-   
+*/
 
     uint32_t *rec_tag[4] = { 0 };
     
@@ -663,7 +664,7 @@ int main()
                     0x67,0x30,0x83,0x08
                                        };
 
-    received_data[0] = 24;
+    received_data[0] = 23;
     received_data[1] = 0x5bc94fbc;
     received_data[2] = 0x3221a5db;
     received_data[3] = 0x94fae95a;
@@ -689,31 +690,23 @@ int main()
     received_data[23]= 0x5bc94fbc;
 
  
-   int msg_length = 
-    
-    printf("The message data is ....");
+   int msg_length = 0;
+  
     printf("\n");
     for(i=8;i<(int)received_data[0];i++) {
          uint32_t temp = received_data[i];
          for(j=3;j>=0;j--) {
-            message[m] = (temp >> (j << 3)) & 0xff;
-            printf("%02x", message[m]);
-            m = m + 1;
+            message[msg_length] = (temp >> (j << 3)) & 0xff;
+            msg_length = msg_length + 1;
         }
     }
-    
-    int msg_length = m;
-    
-    printf("\n");
-*/
-
+  
     m = 0;
     
     for(i=5;i<8;i++) {
         uint32_t temp = received_data[i];
         for(j=3;j>=0;j--) {
            iv[m] = (temp >> (j << 3)) & 0xff;
-           printf("%02x", iv[m]);
            m = m + 1;
         }
     }
@@ -723,11 +716,8 @@ int main()
     rec_tag[2] = received_data[3];
     rec_tag[3] = received_data[4];
     
-    
-    int msg_length = sizeof(message)/sizeof(uint8_t);
-    printf(" The length is %d", msg_length);
-   
-    int cipher_length = (sizeof(message)/sizeof(uint8_t))*8;
+
+    int cipher_length = msg_length*8;
   
     Rcon(Rconstant);
     keyExpansion(key);
@@ -743,7 +733,6 @@ int main()
        
         int c = j+1;
         AES_Encrypt(counter[c], encrypt_msg, key);
-        printf("C[%d]", j);
         for( i=0;i<16;i++) {
             if(j == counts-1 && text[j][i] != 0x00) {
                plaintext[j][i] = text[j][i] ^ encrypt_msg[i];
@@ -753,7 +742,7 @@ int main()
                plaintext[j][i] = text[j][i] ^ encrypt_msg[i];
                encrypted_msg[j][i] = text[j][i];
             }
-            printf("%02x", plaintext[j][i]);
+
         }
         
         printf("\n");
@@ -761,6 +750,11 @@ int main()
 
     Ghash(Z, A, B, counts, add, auth_length, cipher_length);
 
+    if(tag[0] != rec_tag[0] && tag[0] != rec_tag[0] && tag[0] != rec_tag[0] && tag[0] != rec_tag[0]) {
+        memset(plaintext, 0, sizeof plaintext);
+        printf("%02x", plaintext[0][0]);
+    }
+    
     /*
      *  normal BIOS programs, would call BIOS_start() to enable interrupts
      *  and start the scheduler and kick BIOS into gear.  But, this program
@@ -768,5 +762,4 @@ int main()
      */
     //BIOS_exit(0);  /* terminates program and dumps SysMin output */
     return(0);
-}
 }
