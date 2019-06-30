@@ -765,7 +765,7 @@ int main()
         
     }
     
-    transmit_data[new_len] = new_len;
+    transmit_data[new_len] = new_len-1;
     printf("transmit[] : %x\n", transmit_data[new_len]);
     
     /*
