@@ -1,33 +1,6 @@
 
-/* XDC Module Headers */
-#include <xdc/std.h>
-#include <xdc/runtime/System.h>
 
-/* BIOS Module Headers */
-#include <ti/sysbios/BIOS.h>
-
-#include <ti/drivers/Board.h>
-
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
-
-
-int plaintext_block(uint8_t *plaintext, int text_length);
-void initialization_counter(uint8_t vector[], int count);
-void keyExpansion(uint8_t *allocated_key);
-void RotWord(uint8_t *col_block, uint8_t *rot_col_block);
-void Subbyte(uint8_t *plain_text, uint8_t *transfered_text, unsigned int length);
-void Rcon(uint8_t *Rcon);
-void RoundKeys(uint8_t plain_message[], uint8_t cipher_key[], uint8_t encrypted_message[]);
-void shiftrow(uint8_t *transfered_text, uint8_t *shifted_text);
-void mixcolumn(uint8_t *shifted_text, uint8_t *mixed_text);
-void AES_Encrypt(uint8_t msg[], uint8_t enc_msg[], uint8_t key[]);
-uint8_t multiply(uint8_t value);
-uint8_t lsb_finder(uint32_t input);
-void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]);
-void Ghash(uint32_t *input_Z[4], uint32_t *input_A[4], uint32_t *input_B[4], int counts, uint8_t auth_data[], int auth_len, int cipher_count);
-
+#include "AES-GCM-Decrypt.h"
 
 static const uint8_t sbox[256] = {
                   //0     1    2      3     4    5     6     7      8    9     A      B    C     D     E     F
@@ -52,40 +25,38 @@ struct Round_keys {
     uint8_t keys[16];
 };
 
-uint8_t plaintext[20][16] = { 0 };
+uint8_t text[34][16] = { 0 };
 
-uint8_t text[20][16] = { 0 };
+uint8_t encrypted_msg[34][16] = { 0 };
 
-uint8_t encrypted_msg[20][16] = { 0 };
-
-uint8_t counter[20][20] = { 0 };
+uint8_t counter[34][16] = { 0 };
 
 struct Round_keys No_of_Expanded_keys[11];
 
-uint8_t encrypt_msg[16];
-uint8_t rotated_block[4];
-uint8_t sub_block[4];
+uint8_t encrypt_msg[16] = { 0 };
+uint8_t rotated_block[4] = { 0 };
+uint8_t sub_block[4] = { 0 };
 
-uint8_t sub_text[16];
-uint8_t shift_text[16];
-uint8_t mix_text[16];
+uint8_t sub_text[16] = { 0 };
+uint8_t shift_text[16] = { 0 };
+uint8_t mix_text[16] = { 0 };
 
-uint8_t Hash_text[16];
+uint8_t Hash_text[16] = { 0 };
 
-uint8_t Rconstant[] = {0x01, 0x00, 0x00, 0x00};
+uint8_t Rconstant[44] = { 0 };
 
-uint8_t init_encrypt_msg[16];
+uint8_t init_encrypt_msg[16] = { 0 };
 
 uint32_t *length_cipher[2] = { 0 };
 uint32_t *length_add[2] = { 0 };
 
-uint32_t *Total_length[4] = { 0 };
+uint32_t Total_length[4] = { 0,0,0,0 };
 
-uint32_t *tag[4] = { 0 };
+uint32_t tag[4] = { 0,0,0,0 };
 
-uint8_t auth_text[20][16] = { 0 };
+uint8_t auth_text[2][16] = { 0 };
 
-uint32_t *received_data[] = { 0 };
+
 
 void AES_Encrypt(uint8_t msg[], uint8_t enc_msg[], uint8_t keys[]) {
     int k, i;
@@ -98,11 +69,13 @@ void AES_Encrypt(uint8_t msg[], uint8_t enc_msg[], uint8_t keys[]) {
             shiftrow(sub_text, shift_text);
 
             RoundKeys(shift_text, No_of_Expanded_keys[k].keys, enc_msg);
+
             printf("last round enc_msg : ");
-            for( i=0; i<16; i++){
+            for(i=0; i<16; i++){
                 printf("%02x", enc_msg[i]);
             }
             printf("\n");
+            
         }
           else {
             Subbyte(enc_msg, sub_text, 16);
@@ -125,21 +98,21 @@ uint8_t msb_finder(uint32_t input){
 }
 
 uint8_t lsb_finder(uint32_t input){
-  uint32_t bit_mask = 0x80000000;
   uint32_t temp = input;
 
   return ((temp) >> 31);
-  
+
 }
 
 
-void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
+void galois_multiply(uint32_t x[4], uint32_t y[4], uint32_t z[4]){
     uint32_t bit_shifter = 0x80000000;
     unsigned char i =0;
     unsigned char j =0;
     unsigned char v_lsb_flag = 0;
     uint32_t temp;
     uint32_t temp2;
+    uint32_t temp3;
 
     uint32_t v[4] = {0,0,0,0};
 
@@ -153,13 +126,17 @@ void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
     r[0] = 0xe1000000;
 
     for( i=0; i<4; i++){
-        temp = x[i];//copy y to temp
+        temp = (uint32_t)x[i];//copy y to temp
         for( j=0; j<32; j++){
             if( ( temp & bit_shifter) == bit_shifter){//bit masking one by one
-                z[0] = ( (uint32_t)z[0] ^ v[0] );
-                z[1] = ( (uint32_t)z[1] ^ v[1] );
-                z[2] = ( (uint32_t)z[2] ^ v[2] );
-                z[3] = ( (uint32_t)z[3] ^ v[3] );
+                temp3 = ( (uint32_t)z[0] ^ (uint32_t)v[0] );
+                z[0] = temp3;
+                temp3 = ( (uint32_t)z[1] ^ (uint32_t)v[1] );
+                z[1] = temp3;
+                temp3 = ( (uint32_t)z[2] ^ (uint32_t)v[2] );
+                z[2] = temp3;
+                temp3 = ( (uint32_t)z[3] ^ (uint32_t)v[3] );
+                z[3] = temp3;
 
             }
             if(msb_finder(v[3])){//When LSB of Vi is 0
@@ -167,18 +144,19 @@ void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
 
            }
 
+          //order is 0 1 2 3 >>>>> moving this way
 
          //   v[0] = v[0] >> 1;
 
             v[3] = v[3] >> 1;
-            
+
             temp2 = v[2];
             if(msb_finder(temp2)){//if lsb of v[1] is '1'
                v[3] = (uint32_t)v[3] |  0x80000000;//write MSB as 1
             }
-            
-            
-            
+
+
+
              v[2] = v[2] >> 1;
 
             temp2 = v[1];
@@ -187,14 +165,14 @@ void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
             }
 
            v[1] = v[1] >> 1;
- 
+
             temp2 = v[0];
             if(msb_finder(temp2)){
                v[1] = (uint32_t)v[1] |  0x80000000;
             }
-            
+
             v[0] = v[0] >> 1;
-            
+
             if( v_lsb_flag == 1){
                // v[3] = v[3] ^ r[3];
                // v[2] = v[2] ^ r[2];
@@ -213,23 +191,24 @@ void galois_multiply(uint32_t *x[4], uint32_t *y[4], uint32_t *z[4]){
 
 }
 
-void Ghash(uint32_t *input_Z[4], uint32_t *input_A[4], uint32_t *input_B[4], int counts, uint8_t auth_data[], int auth_len, int cipher_count) {
-  
+void Ghash(uint32_t input_Z[4], uint32_t input_A[4], uint32_t input_B[4], int counts, uint8_t auth_data[], int auth_len, int cipher_count) {
+
     //need to remove the number of zeros in ciphertext end result and don't use padded encrypt bits
     //replace them by zero before xoring in ciphertext with plaintext
     //memcpy shifting
     //decryption in aes gcm
-    
-    int k,i,j,l,m;
+
+    int k,i,l,m;
+    uint32_t temp;
 
     for(k=0;k<counts;k++) {
-      
+
       int byte_len = auth_len/8;
-      
+
       if(k == 0 && byte_len != 0) {
           int text_count = 0;
           int auth_count = 0;
-     
+
         while(byte_len > 0) {
           if(byte_len >= 16) {
              for(l=0;l<16;l++) {
@@ -254,31 +233,37 @@ void Ghash(uint32_t *input_Z[4], uint32_t *input_A[4], uint32_t *input_B[4], int
             auth_count++;
           }
         }
-        
+
+         
         for(i=0;i<auth_count;i++) {
             memcpy(&input_A[0], auth_text[i], 4);
             memcpy(&input_A[1], auth_text[i]+4, 4);
             memcpy(&input_A[2], auth_text[i]+8, 4);
             memcpy(&input_A[3], auth_text[i]+12, 4);
-            
+
             memcpy(&input_B[0], Hash_text, 4);
             memcpy(&input_B[1], Hash_text+4, 4);
             memcpy(&input_B[2], Hash_text+8, 4);
             memcpy(&input_B[3], Hash_text+12, 4);
-      
-      
+
+            printf("The data\n");
             for(m=0;m<4;m++) {
-               volatile uint32_t temp = input_A[m];
-               input_A[m] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
-               temp = input_B[m];
-               input_B[m] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+               temp = (((uint32_t)input_A[m] & 0xFF000000 )>>24) | (((uint32_t)input_A[m] & 0x00FF0000) >> 8) | (((uint32_t)input_A[m] & 0x0000FF00) << 8) | (((uint32_t)input_A[m] & 0x000000FF) << 24);
+               //input_A[m] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+               input_A[m] = temp;
+              
+               printf("%02lx", input_A[m]);
+               temp = (((uint32_t)input_B[m] & 0xFF000000 )>>24) | (((uint32_t)input_B[m] & 0x00FF0000) >> 8) | (((uint32_t)input_B[m] & 0x0000FF00) << 8) | (((uint32_t)input_B[m] & 0x000000FF) << 24);
+               input_B[m] = temp;
             }
+
+            printf("\n");
             
             if(i > 0) {
                 for(m=0;m<4;m++) {
-                   uint32_t temp5 = input_A[m];
-                   uint32_t temp6 = input_Z[m];
-                   input_A[m] = temp5 ^ temp6;
+                   uint32_t temp5;
+                   temp5 = ((uint32_t)input_A[m] ^ (uint32_t)input_Z[m]);
+                   input_A[m] = temp5;
                 }
             }
 
@@ -286,34 +271,43 @@ void Ghash(uint32_t *input_Z[4], uint32_t *input_A[4], uint32_t *input_B[4], int
             input_Z[1] = 0;
             input_Z[2] = 0;
             input_Z[3] = 0;
-      
+
             galois_multiply(input_A, input_B, input_Z);
-                 
+            printf("After auth galois");
+            printf("\n");
+            
+            printf("%02lx\n", input_Z[0]);
+            printf("%02lx\n", input_Z[1]);
+            printf("%02lx\n", input_Z[2]);
+            printf("%02lx\n", input_Z[3]);
+            
+            printf("\n");
+            
         }
-        
+
         memcpy(&input_A[0], encrypted_msg[0], 4);
         memcpy(&input_A[1], encrypted_msg[0]+4, 4);
         memcpy(&input_A[2], encrypted_msg[0]+8, 4);
         memcpy(&input_A[3], encrypted_msg[0]+12, 4);
-        
+
         for(m=0;m<4;m++) {
-          volatile uint32_t temp = input_A[m];
-          input_A[m] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+          temp = (((uint32_t)input_A[m] & 0xFF000000 )>>24) | (((uint32_t)input_A[m] & 0x00FF0000) >> 8) | (((uint32_t)input_A[m] & 0x0000FF00) << 8) | (((uint32_t)input_A[m] & 0x000000FF) << 24);
+          input_A[m] = temp;
         }
-        
+
         for(m=0;m<4;m++) {
-            uint32_t temp1 = input_A[m];
-            uint32_t temp2 = input_Z[m];
-            input_A[m] = temp1 ^ temp2;
+            temp = (uint32_t)input_A[m] ^ (uint32_t)input_Z[m];
+            input_A[m] = temp;
         }
-           
+
         input_Z[0] = 0;
         input_Z[1] = 0;
         input_Z[2] = 0;
         input_Z[3] = 0;
-            
+
+
         galois_multiply(input_A, input_B, input_Z);
-        
+
       }
       else {
        memcpy(&input_A[0], encrypted_msg[k], 4);
@@ -325,83 +319,81 @@ void Ghash(uint32_t *input_Z[4], uint32_t *input_A[4], uint32_t *input_B[4], int
        memcpy(&input_B[1], Hash_text+4, 4);
        memcpy(&input_B[2], Hash_text+8, 4);
        memcpy(&input_B[3], Hash_text+12, 4);
-      
-       for(i=0;i<4;i++) {
-          volatile uint32_t temp = input_A[i];
-          input_A[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
-          temp = input_B[i];
-          input_B[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
-        }
-      
+
+       for(m=0;m<4;m++) {
+          temp = (((uint32_t)input_A[m] & 0xFF000000 )>>24) | (((uint32_t)input_A[m] & 0x00FF0000) >> 8) | (((uint32_t)input_A[m] & 0x0000FF00) << 8) | (((uint32_t)input_A[m] & 0x000000FF) << 24);
+          //input_A[m] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+          input_A[m] = temp;
+          temp = (((uint32_t)input_B[m] & 0xFF000000 )>>24) | (((uint32_t)input_B[m] & 0x00FF0000) >> 8) | (((uint32_t)input_B[m] & 0x0000FF00) << 8) | (((uint32_t)input_B[m] & 0x000000FF) << 24);
+          input_B[m] = temp;
+       }
+
       if(k > 0) {
           for(i=0;i<4;i++) {
-              uint32_t temp1 = input_A[i];
-              uint32_t temp2 = input_Z[i];
-              input_A[i] = temp1 ^ temp2;
+            temp = (uint32_t)input_A[i] ^ (uint32_t)input_Z[i];
+            input_A[i] = temp;
           }
       }
- 
+
       input_Z[0] = 0;
       input_Z[1] = 0;
       input_Z[2] = 0;
       input_Z[3] = 0;
-     
+
       galois_multiply(input_A, input_B, input_Z);
-  
-      Total_length[1] = auth_len;
-      Total_length[3] = cipher_count;
-      
-      if(k == counts - 1) {
+
+            
+      Total_length[1] = (uint32_t)auth_len;
+      Total_length[3] = (uint32_t)cipher_count;
  
-         for(l=0;l<4;l++) {
-            uint32_t temp3 = Total_length[l];
-            uint32_t temp4 = input_Z[l];
-            input_A[l] = temp4  ^ temp3;
-         }
    
+      if(k == counts - 1) {
+
+         for(l=0;l<4;l++) {
+            uint32_t temp3 = (uint32_t)Total_length[l];
+            uint32_t temp4 = (uint32_t)input_Z[l];
+            temp3 = temp3 ^ temp4;
+            input_A[l] = temp3;
+         }
+
          input_Z[0] = 0;
          input_Z[1] = 0;
          input_Z[2] = 0;
          input_Z[3] = 0;
-         
+
          galois_multiply(input_A, input_B, input_Z);
-         
-         printf("\n");  
-         printf("Z[0] : %x\n", input_Z[0]);
-         printf("Z[1] : %x\n", input_Z[1]);
-         printf("Z[2] : %x\n", input_Z[2]);
-         printf("Z[3] : %x\n", input_Z[3]);
-         
+        
          memcpy(&input_A[0], init_encrypt_msg, 4);
          memcpy(&input_A[1], init_encrypt_msg+4, 4);
          memcpy(&input_A[2], init_encrypt_msg+8, 4);
          memcpy(&input_A[3], init_encrypt_msg+12, 4);
-          
+
          for(i=0;i<4;i++) {
-           volatile uint32_t temp = input_A[i];
-           input_A[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+           temp = (((uint32_t)input_A[i] & 0xFF000000 )>>24) | (((uint32_t)input_A[i] & 0x00FF0000) >> 8) | (((uint32_t)input_A[i] & 0x0000FF00) << 8) | (((uint32_t)input_A[i] & 0x000000FF) << 24);
+           input_A[i] = temp;
          }
-         
+
+         printf("\n");
+         printf("The tag is\n");
          for(i=0;i<4;i++) {
-             uint32_t temp1 = input_A[i];
-             uint32_t temp2 = input_Z[i];
-             
+             uint32_t temp1 = (uint32_t)input_A[i];
+             uint32_t temp2 = (uint32_t)input_Z[i];
+
              tag[i] = temp1 ^ temp2;
+             
+
          }
-         
-         
-         printf("\n");  
-         printf("Tag[0] : %x\n", tag[0]);
-         printf("Tag[1] : %x\n", tag[1]);
-         printf("Tag[2] : %x\n", tag[2]);
-         printf("Tag[3] : %x\n", tag[3]);
-      
+         printf("%02lx\n", tag[0]);
+         printf("%02lx\n", tag[1]);
+         printf("%02lx\n", tag[2]);
+         printf("%02lx\n", tag[3]);
+         printf("\n");
       }
     }
   }
 }
-   
-    
+
+
    //= 0x5E2EC746/91706288/2C85B068/5353DEB7
 //0x0388DACE/60B6A392/F328C2B9/71B2FE78
 //0x66E94BD4/EF8A2C3B/884CFA59/CA342B2E
@@ -567,7 +559,7 @@ void initialization_counter(uint8_t vector[], int count) {
             else {
                 counter[k][i] = vector[i];
             }
- 
+
         }
 
     }
@@ -577,8 +569,8 @@ int plaintext_block(uint8_t *plaintext, int text_length) {
      int i;
      int text_count = 0;
      int counts = 0;
-     
-     
+
+
      while(text_length > 0) {
          if(text_length >= 16) {
            for( i=0;i<16;i++) {
@@ -588,7 +580,7 @@ int plaintext_block(uint8_t *plaintext, int text_length) {
            text_length = text_length - 16;
            counts++;
          }
-         else if(text_length < 16 && text_length != 0){
+         else if(text_length < 16){
             int zero_pad = 16 - text_length;
 
             for( i=0;i<text_length;i++) {
@@ -609,54 +601,44 @@ int plaintext_block(uint8_t *plaintext, int text_length) {
 }
 
 
-int main()
+void main_decrypt(uint8_t message[], uint8_t encrypted_message[], int msg_length)
 {
     /* Call driver init functions */
-    int i, j,m;
-    Board_init();
+    int i, j;
 
+    uint32_t Z[4] = {0,0,0,0};
 
-    uint32_t *Z[4] = {0,0,0,0};
+    uint32_t A[4] = {0,0,0,0};
+    uint32_t B[4] = {0,0,0,0};
 
-    uint32_t *A[4];
-    uint32_t *B[4];
-    
+    uint32_t rec_tag[4] = { 0,0,0,0 };
+/*   
     uint8_t add[] = {0xfe, 0xed, 0xfa, 0xce,
                      0xde, 0xad, 0xbe, 0xef,
                      0xfe, 0xed, 0xfa, 0xce,
                      0xde, 0xad, 0xbe, 0xef,
                      0xab, 0xad, 0xda, 0xd2
     };
- 
-    uint8_t Hash[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
-   // uint8_t iv[] ={0xca, 0xfe, 0xba, 0xbe, 0xfa, 0xce, 0xdb, 0xad, 0xde, 0xca, 0xf8, 0x88};
-   
-    uint8_t iv[12];
-    uint8_t message[100] = {};
-    
- /*   
-   uint8_t message[] = { 0x42, 0x83, 0x1e, 0xc2,
-                         0x21, 0x77, 0x74, 0x24,
-                         0x4b, 0x72, 0x21, 0xb7,
-                         0x84, 0xd0, 0xd4, 0x9c,
-                         0xe3, 0xaa, 0x21, 0x2f,
-                         0x2c, 0x02, 0xa4, 0xe0,
-                         0x35, 0xc1, 0x7e, 0x23,
-                         0x29, 0xac, 0xa1, 0x2e,
-                         0x21, 0xd5, 0x14, 0xb2,
-                         0x54, 0x66, 0x93, 0x1c,
-                         0x7d, 0x8f, 0x6a, 0x5a,
-                         0xac, 0x84, 0xaa, 0x05,
-                         0x1b, 0xa3, 0x0b, 0x39,
-                         0x6a, 0x0a, 0xac, 0x97,
-                         0x3d, 0x58, 0xe0, 0x91
-    };
 */
 
-    uint32_t *rec_tag[4] = { 0 };
+    uint8_t add[] = {};
+    
+    uint8_t iv[12] = { 0 };
+    
+    uint8_t mesg[100] = { 0 };
+    
+    uint8_t Hash[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+    printf("The message length is %d\n", msg_length);
+
+    int cipher_length = (msg_length-28)*8;
+    
+    printf("The cipher length is %d\n", cipher_length);
     
     int auth_length = (sizeof(add)/sizeof(uint8_t))*8;
+    
+    printf("The auth length is %d\n", auth_length);
+    
 
     uint8_t key[]= {0xfe,0xff,0xe9,0x92,
                     0x86,0x65,0x73,0x1c,
@@ -664,102 +646,94 @@ int main()
                     0x67,0x30,0x83,0x08
                                        };
 
-    received_data[0] = 23;
-    received_data[1] = 0x5bc94fbc;
-    received_data[2] = 0x3221a5db;
-    received_data[3] = 0x94fae95a;
-    received_data[4] = 0xe7121a47;
-    received_data[5] = 0xcafebabe;
-    received_data[6] = 0xfacedbad;
-    received_data[7] = 0xdecaf888;
-    received_data[8] = 0x42831ec2;
-    received_data[9] = 0x21777424;
-    received_data[10] = 0x4b7221b7;
-    received_data[11]= 0x84d0d49c;
-    received_data[12]= 0xe3aa212f;
-    received_data[13]= 0x2c02a4e0;
-    received_data[14]= 0x35c17e23;
-    received_data[15]= 0x29aca12e;
-    received_data[16]= 0x21d514b2;
-    received_data[17]= 0x5466931c;
-    received_data[18]= 0x7d8f6a5a;
-    received_data[19]= 0xac84aa05;
-    received_data[20]= 0x1ba30b39;
-    received_data[21]= 0x6a0aac97;
-    received_data[22]= 0x3d58e091;
-    received_data[23]= 0x5bc94fbc;
 
- 
-   int msg_length = 0;
-  
-    printf("\n");
-    for(i=8;i<(int)received_data[0];i++) {
-         uint32_t temp = received_data[i];
-         for(j=3;j>=0;j--) {
-            message[msg_length] = (temp >> (j << 3)) & 0xff;
-            msg_length = msg_length + 1;
-        }
+    memcpy(&rec_tag[0], message, 4);
+    memcpy(&rec_tag[1], message+4, 4);
+    memcpy(&rec_tag[2], message+8, 4);
+    memcpy(&rec_tag[3], message+12, 4);
+    
+    printf("The tag id is\n");
+    for(i=0;i<4;i++) {
+        volatile uint32_t temp = rec_tag[i];
+        rec_tag[i] = ((temp & 0xFF000000 )>>24) | ((temp & 0x00FF0000) >> 8) | ((temp & 0x0000FF00) << 8) | ((temp & 0x000000FF) << 24);
+        printf("%02lx", rec_tag[i]);
     }
   
-    m = 0;
+    int iv_len = 0;
     
-    for(i=5;i<8;i++) {
-        uint32_t temp = received_data[i];
-        for(j=3;j>=0;j--) {
-           iv[m] = (temp >> (j << 3)) & 0xff;
-           m = m + 1;
-        }
+    for(i=16;i<28;i++) {
+        iv[iv_len] = message[i];
+        iv_len = iv_len + 1;
     }
-   
-    rec_tag[0] = received_data[1];
-    rec_tag[1] = received_data[2];
-    rec_tag[2] = received_data[3];
-    rec_tag[3] = received_data[4];
     
+    int len = 0;
+    
+    for(i=28;i<msg_length;i++) {
+         mesg[len] = message[i];
+         len = len + 1;
+    }
 
-    int cipher_length = msg_length*8;
-  
+    Rconstant[0] = 0x01;
     Rcon(Rconstant);
+
     keyExpansion(key);
 
-    int counts = plaintext_block(message,msg_length);
+    int counts = plaintext_block(mesg, len);
     initialization_counter(iv,counts);
- 
+
+    printf("The Original message is");
+    for(i=0;i<msg_length;i++) {
+        printf("%02x", message[i]);   
+    }
+    
+    printf("\n");
+    
+    printf("The plaintext block is");
+    for(i=0; i<counts;i++) {
+        for(j=0;j<16;j++) {
+            printf("%02x", text[i][j]);
+        }
+        printf("\n");
+
+    }
+
+
     AES_Encrypt(Hash, Hash_text, key);
 
     AES_Encrypt(counter[0], init_encrypt_msg, key);
-   
+
+    int pl_len = 0;
+    
     for( j=0;j<counts;j++){
-       
+
         int c = j+1;
         AES_Encrypt(counter[c], encrypt_msg, key);
-        for( i=0;i<16;i++) {
-            if(j == counts-1 && text[j][i] != 0x00) {
-               plaintext[j][i] = text[j][i] ^ encrypt_msg[i];
-               encrypted_msg[j][i] = text[j][i];
-            }
-            else if(j != counts-1) {
-               plaintext[j][i] = text[j][i] ^ encrypt_msg[i];
-               encrypted_msg[j][i] = text[j][i];
-            }
-
+        for(i=0;i<16;i++) {
+             if(j == counts-1 && text[j][i] != 0x00) {
+                  encrypted_message[pl_len] = text[j][i] ^ encrypt_msg[i];
+                  encrypted_msg[j][i] = text[j][i];
+                  pl_len = pl_len + 1;
+             }
+             else if(j != counts-1) {
+                   encrypted_message[pl_len] = text[j][i] ^ encrypt_msg[i];
+                   encrypted_msg[j][i] = text[j][i];
+                   pl_len = pl_len + 1;
+             }
         }
-        
-        printf("\n");
     }
+
 
     Ghash(Z, A, B, counts, add, auth_length, cipher_length);
-
-    if(tag[0] != rec_tag[0] && tag[0] != rec_tag[0] && tag[0] != rec_tag[0] && tag[0] != rec_tag[0]) {
-        memset(plaintext, 0, sizeof plaintext);
-        printf("%02x", plaintext[0][0]);
+   
+    if(tag[0] != rec_tag[0] || tag[1] != rec_tag[1] || tag[2] != rec_tag[2] || tag[3] != rec_tag[3]) {
+        for(i=0;i<pl_len;i++){
+          encrypted_message[i] = 0;
+        }
     }
-    
-    /*
-     *  normal BIOS programs, would call BIOS_start() to enable interrupts
-     *  and start the scheduler and kick BIOS into gear.  But, this program
-     *  is a simple sanity test and calls BIOS_exit() instead.
-     */
-    //BIOS_exit(0);  /* terminates program and dumps SysMin output */
-    return(0);
+   
+    printf("plaintext is \n");
+    for(i=0;i<pl_len;i++){
+        printf("%02x", encrypted_message[i]);
+    }
+    printf("\n");
 }
